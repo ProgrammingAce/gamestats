@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GameStats</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>GAMESTATS</h1>
+    </header>
+
+    <div class="controls">
+      <button id="scanBtn" class="btn btn-primary">Scan Now</button>
+      <button id="manageBtn" class="btn btn-secondary">Manage Folders</button>
+    </div>
+
+    <div class="summary" id="summary">
+      <span id="totalGames">Total: 0 games</span>
+      <span id="totalSize">| 0 GB</span>
+      <span id="largestGame">| Largest: -</span>
+    </div>
+
+    <div id="warningNotesContainer"></div>
+
+    <div class="filter-bar">
+      <input type="text" id="filterInput" placeholder="Filter games by name..." class="filter-input">
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="rank">#</th>
+            <th class="sortable" data-sort="name">Game Name</th>
+            <th class="sortable" data-sort="launcher">Launcher</th>
+            <th class="sortable" data-sort="size">Size</th>
+            <th>Install Path</th>
+          </tr>
+        </thead>
+        <tbody id="gameTableBody">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+      <span id="scanStatus">Ready</span>
+      <span id="scanProgress"></span>
+      <span id="lastScanTime"></span>
+    </div>
+
+    <div class="manage-panels" id="managePanels">
+      <div class="panel" id="userFoldersPanel">
+        <h2>User Folders</h2>
+        <div class="add-folder">
+          <input type="text" id="newFolderPath" placeholder="Enter path (e.g., D:\Games)" class="path-input">
+          <button id="addFolderBtn" class="btn btn-small">Add</button>
+        </div>
+        <div id="userFoldersList" class="folders-list"></div>
+      </div>
+
+      <div class="panel" id="configFoldersPanel">
+        <h2>Config File Folders</h2>
+        <div id="configFoldersList" class="folders-list"></div>
+        <p class="hint" id="configHint">Place a gamestats.config.json in your working directory to pre-configure scan paths.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

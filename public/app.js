@@ -1,0 +1,343 @@
+const state = {
+  games: [],
+  filteredGames: [],
+  sortColumn: 'size',
+  sortDirection: 'desc',
+  filter: '',
+  sse: null,
+  lastScanDuration: null,
+  customPaths: [],
+};
+
+function formatSize(bytes) {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return `${gb.toFixed(1)} GB`;
+}
+
+function formatName(name) {
+  return name
+    .replace(/[-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function loadFolders() {
+  try {
+    const res = await fetch('/api/folders');
+    const data = await res.json();
+    
+    state.customPaths = data.settings.map(path => ({ path, name: null }));
+    renderFolders(data.settings, data.config, data.configFileFound);
+  } catch (err) {
+    console.error('Failed to load folders:', err);
+  }
+}
+
+function renderFolders(userFolders, configFolders, configFileFound) {
+  const userList = document.getElementById('userFoldersList');
+  const configList = document.getElementById('configFoldersList');
+  const configHint = document.getElementById('configHint');
+
+  userList.innerHTML = userFolders.map(path => `
+    <div class="folder-item">
+      <div class="folder-info">
+        <div class="folder-path">${escapeHtml(path)}</div>
+      </div>
+      <button class="btn btn-small btn-danger" data-path="${escapeHtml(path)}">Remove</button>
+    </div>
+  `).join('') || '<p class="hint">No custom folders</p>';
+
+  configList.innerHTML = configFolders.map(folder => `
+    <div class="folder-item config">
+      <div class="folder-info">
+        <div class="folder-path">${escapeHtml(folder.path)}</div>
+        ${folder.name ? `<div class="folder-name">${escapeHtml(folder.name)}</div>` : ''}
+      </div>
+    </div>
+  `).join('') || '<p class="hint">No config file found</p>';
+
+  configHint.style.display = configFileFound ? 'none' : 'block';
+}
+
+async function startScan() {
+  const statusEl = document.getElementById('scanStatus');
+  const progressEl = document.getElementById('scanProgress');
+  const scanBtn = document.getElementById('scanBtn');
+
+  statusEl.textContent = 'Scanning...';
+  scanBtn.disabled = true;
+
+  state.sse = new EventSource('/api/scan');
+
+  state.sse.addEventListener('progress', (event) => {
+    const data = JSON.parse(event.data);
+    statusEl.textContent = `Scanning: ${data.launcher} (${data.gamesFound} games)`;
+  });
+
+  state.sse.addEventListener('game', (event) => {
+    const data = JSON.parse(event.data);
+    const game = data.game;
+    state.games.push(game);
+    state.filteredGames = applyFiltersAndSort();
+    renderTable();
+    updateSummary();
+    progressEl.textContent = `Calculating: ${game.name} (${data.current}/${data.total})...`;
+  });
+
+  state.sse.addEventListener('complete', (event) => {
+    const data = JSON.parse(event.data);
+    const { totalGames, totalSize, durationMs, notes } = data;
+    statusEl.textContent = `Complete: ${totalGames} games, ${formatSize(totalSize)}`;
+    progressEl.textContent = `Duration: ${Math.round(durationMs / 1000)}s`;
+    state.lastScanDuration = durationMs;
+    
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).replace(',', '');
+    
+    const lastScanEl = document.getElementById('lastScanTime');
+    if (lastScanEl) {
+      lastScanEl.textContent = `Last scan: ${timestamp}`;
+    }
+    
+    scanBtn.disabled = false;
+    
+    if (notes && notes.length > 0) {
+      displayNotes(notes);
+    }
+    
+    state.sse.close();
+  });
+
+  state.sse.addEventListener('error', (event) => {
+    const data = JSON.parse(event.data);
+    statusEl.textContent = `Error: ${data.message}`;
+    scanBtn.disabled = true;
+    state.sse.close();
+  });
+
+  state.sse.onerror = () => {
+    statusEl.textContent = 'Connection error';
+    state.sse.close();
+    scanBtn.disabled = false;
+  };
+
+  await fetch('/api/scan', { method: 'POST' });
+}
+
+function applyFiltersAndSort() {
+  let filtered = state.games.filter(game =>
+    game.name.toLowerCase().includes(state.filter.toLowerCase())
+  );
+
+  filtered.sort((a, b) => {
+    let aVal = a[state.sortColumn];
+    let bVal = b[state.sortColumn];
+
+    if (state.sortColumn === 'size') {
+      aVal = a.size || 0;
+      bVal = b.size || 0;
+    } else if (state.sortColumn === 'name') {
+      aVal = a.name.toLowerCase();
+      bVal = b.name.toLowerCase();
+    } else if (state.sortColumn === 'launcher') {
+      aVal = a.launcher.toLowerCase();
+      bVal = b.launcher.toLowerCase();
+    } else if (state.sortColumn === 'rank') {
+      aVal = a.size || 0;
+      bVal = b.size || 0;
+    }
+
+    if (aVal < bVal) return state.sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return state.sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  return filtered;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('gameTableBody');
+  const filterInput = document.getElementById('filterInput');
+
+  tbody.innerHTML = state.filteredGames.map((game, index) => `
+    <tr>
+      <td class="rank">${index + 1}</td>
+      <td class="game-name">${escapeHtml(game.name)}</td>
+      <td class="launcher">${escapeHtml(game.launcher)}</td>
+      <td class="size">${formatSize(game.size)}</td>
+      <td class="path" title="${escapeHtml(game.path)}" data-path="${game.path}">${escapeHtml(game.path)}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="empty-state">No games found. Try adding a custom scan folder.</td></tr>';
+
+  tbody.querySelectorAll('.path').forEach(el => {
+    el.addEventListener('click', () => openFolder(el.dataset.path));
+  });
+
+  filterInput.value = state.filter;
+}
+
+function updateSummary() {
+  const totalGames = state.games.length;
+  const totalSize = state.games.reduce((sum, g) => sum + (g.size || 0), 0);
+  const largest = state.games.sort((a, b) => (b.size || 0) - (a.size || 0))[0];
+
+  document.getElementById('totalGames').textContent = `Total: ${totalGames} games`;
+  document.getElementById('totalSize').textContent = `| ${formatSize(totalSize)}`;
+  document.getElementById('largestGame').textContent = largest
+    ? `| Largest: ${largest.name} (${formatSize(largest.size)})`
+    : '| Largest: -';
+}
+
+function displayNotes(notes) {
+  const container = document.getElementById('warningNotesContainer');
+  container.innerHTML = notes.map(note => `
+    <div class="warning-note">
+      <strong>${escapeHtml(note.launcher)}:</strong> ${escapeHtml(note.message)}
+    </div>
+  `).join('');
+}
+
+async function openFolder(path) {
+  try {
+    await fetch('/api/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+  } catch (err) {
+    console.error('Failed to open folder:', err);
+  }
+}
+
+function toggleSort(column) {
+  if (state.sortColumn === column) {
+    state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortColumn = column;
+    state.sortDirection = 'desc';
+  }
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === column) {
+      th.classList.add(`sort-${state.sortDirection}`);
+    }
+  });
+
+  state.filteredGames = applyFiltersAndSort();
+  renderTable();
+  updateSummary();
+}
+
+function toggleManagePanels() {
+  const panels = document.getElementById('managePanels');
+  const isActive = panels.classList.toggle('active');
+  document.getElementById('manageBtn').textContent = isActive ? 'Close Folders' : 'Manage Folders';
+}
+
+async function addCustomFolder() {
+  const input = document.getElementById('newFolderPath');
+  const path = input.value.trim();
+
+  if (!path) return;
+
+  try {
+    const res = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+
+    if (res.ok) {
+      input.value = '';
+      await loadFolders();
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Failed to add folder');
+    }
+  } catch (err) {
+    alert('Failed to add folder: ' + err.message);
+  }
+}
+
+async function removeCustomFolder(path) {
+  try {
+    const res = await fetch('/api/folders', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+
+    if (res.ok) {
+      await loadFolders();
+    }
+  } catch (err) {
+    console.error('Failed to remove folder:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const scanBtn = document.getElementById('scanBtn');
+  const manageBtn = document.getElementById('manageBtn');
+  const managePanels = document.getElementById('managePanels');
+  const filterInput = document.getElementById('filterInput');
+  const addFolderBtn = document.getElementById('addFolderBtn');
+  const newFolderPath = document.getElementById('newFolderPath');
+
+  loadFolders();
+
+  scanBtn.addEventListener('click', startScan);
+
+  manageBtn.addEventListener('click', toggleManagePanels);
+
+  managePanels.addEventListener('click', async (e) => {
+    if (e.target.classList.contains('btn-danger')) {
+      const path = e.target.dataset.path;
+      if (confirm(`Remove ${path}?`)) {
+        await removeCustomFolder(path);
+      }
+    }
+  });
+
+  filterInput.addEventListener('input', (e) => {
+    state.filter = e.target.value;
+    state.filteredGames = applyFiltersAndSort();
+    renderTable();
+  });
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.addEventListener('click', () => toggleSort(th.dataset.sort));
+  });
+
+  addFolderBtn.addEventListener('click', addCustomFolder);
+
+  newFolderPath.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      addCustomFolder();
+    }
+  });
+
+  const initialPath = window.location.pathname.startsWith('/') 
+    ? window.location.pathname.slice(1) 
+    : window.location.pathname;
+  
+  if (initialPath && initialPath.length > 0) {
+    newFolderPath.value = initialPath;
+  }
+});
