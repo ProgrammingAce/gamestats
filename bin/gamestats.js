@@ -2,11 +2,11 @@
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import open from 'open';
-import { info, warn, error } from './server/log.js';
-import { getPort, setPort } from './server/services/settingsService.js';
-import { app, server, setNoAutoShutdown } from './server/index.js';
-import { loadConfigFile } from './server/services/configFileService.js';
-import { getCustomConfigPath, setCustomConfigPath } from './server/services/sharedState.js';
+import { info, warn, error } from '../server/log.js';
+import { getPort, setPort } from '../server/services/settingsService.js';
+import { app, server, setNoAutoShutdown } from '../server/index.js';
+import { loadConfigFile } from '../server/services/configFileService.js';
+import { getCustomConfigPath, setCustomConfigPath } from '../server/services/sharedState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

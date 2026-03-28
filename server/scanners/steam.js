@@ -9,36 +9,40 @@ const STEAM_DEFAULT_PATH = 'C:\\Program Files (x86)\\Steam\\steamapps';
 function parseVDF(content) {
   const result = {};
   const lines = content.split('\n');
-  let currentKey = null;
-  let currentObject = null;
+  const stack = [{ obj: result }];
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed === '{' || trimmed === '}') continue;
+    
+    if (trimmed === '}') {
+      stack.pop();
+      continue;
+    }
+    
+    if (!trimmed || trimmed === '{') continue;
 
-    const match = trimmed.match(/^"(.*)"\s*(\{|\d+|"([^"]*)")?/);
+    const match = trimmed.match(/^"(.*)"\t+"([^"]*)"?$/);
     if (match) {
       const key = match[1];
       const value = match[2];
-      const stringValue = match[3];
+      const current = stack[stack.length - 1].obj;
 
-      if (currentObject !== null) {
-        if (value === '{') {
-          currentObject[key] = {};
-          currentObject = currentObject[key];
-        } else if (value === '}') {
-          currentObject = Object.getPrototypeOf(currentObject);
-        } else {
-          currentObject[key] = stringValue !== undefined ? stringValue : parseInt(value, 10);
-        }
-      } else if (currentKey === null) {
-        if (value === '{') {
-          result[key] = {};
-          currentObject = result[key];
-        } else {
-          result[key] = value !== undefined ? value : parseInt(value, 10);
+      if (value) {
+        current[key] = value.replace(/\\"/g, '"');
+      } else {
+        const parent = stack[stack.length - 2]?.obj;
+        if (parent) {
+          const parentKey = Object.keys(parent).find(k => parent[k] === current);
+          if (parentKey) {
+            delete parent[parentKey];
+            parent[parentKey] = { ...current };
+          }
         }
       }
+    } else if (trimmed.match(/^"(.*)"\s*$/)) {
+      const key = trimmed.match(/^"(.*)"\s*$/)[1];
+      stack[stack.length - 1].obj[key] = {};
+      stack.push({ obj: stack[stack.length - 1].obj[key] });
     }
   }
 
@@ -65,9 +69,9 @@ export async function steamScan(signal) {
       if (parsed['libraryfolders']) {
         const folders = parsed['libraryfolders'];
         for (const key in folders) {
-          if (typeof folders[key] === 'string' && folders[key].startsWith('"')) {
-            const path = folders[key].slice(1, -1);
-            libraryFolders.push(path);
+          const folder = folders[key];
+          if (typeof folder === 'object' && folder.path) {
+            libraryFolders.push(folder.path);
           }
         }
       }
@@ -106,7 +110,7 @@ export async function steamScan(signal) {
           const installdir = installDirMatch[1];
           const appId = appidMatch[1];
           
-          const gamePath = join(libraryPath, 'common', installdir);
+          const gamePath = join(libraryPath, 'steamapps', 'common', installdir);
           
           if (existsSync(gamePath)) {
             games.push({

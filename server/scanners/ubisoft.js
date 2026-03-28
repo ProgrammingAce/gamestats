@@ -1,5 +1,6 @@
 import { existsSync, readdirSync } from 'fs';
-import { join, spawnSync } from 'child_process';
+import { join } from 'path';
+import { spawnSync } from 'child_process';
 import { info, warn } from '../log.js';
 
 const UBISOFT_DEFAULT_PATH = 'C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher\\games';

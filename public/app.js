@@ -73,71 +73,102 @@ async function startScan() {
   const progressEl = document.getElementById('scanProgress');
   const scanBtn = document.getElementById('scanBtn');
 
+  console.log('startScan called');
   statusEl.textContent = 'Scanning...';
   scanBtn.disabled = true;
+  
+  state.games = [];
+  state.filteredGames = [];
+  renderTable();
 
-  state.sse = new EventSource('/api/scan');
+  try {
+    const postRes = await fetch('/api/scan', { method: 'POST' });
+    const sse = new EventSource('/api/scan');
 
-  state.sse.addEventListener('progress', (event) => {
-    const data = JSON.parse(event.data);
-    statusEl.textContent = `Scanning: ${data.launcher} (${data.gamesFound} games)`;
-  });
+    sse.addEventListener('started', (event) => {
+      console.log('Scan started');
+    });
 
-  state.sse.addEventListener('game', (event) => {
-    const data = JSON.parse(event.data);
-    const game = data.game;
-    state.games.push(game);
-    state.filteredGames = applyFiltersAndSort();
-    renderTable();
-    updateSummary();
-    progressEl.textContent = `Calculating: ${game.name} (${data.current}/${data.total})...`;
-  });
+    sse.addEventListener('progress', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        statusEl.textContent = `Scanning: ${data.launcher} (${data.gamesFound} games)`;
+      } catch {
+        statusEl.textContent = `Scanning: ${event.data}`;
+      }
+    });
 
-  state.sse.addEventListener('complete', (event) => {
-    const data = JSON.parse(event.data);
-    const { totalGames, totalSize, durationMs, notes } = data;
-    statusEl.textContent = `Complete: ${totalGames} games, ${formatSize(totalSize)}`;
-    progressEl.textContent = `Duration: ${Math.round(durationMs / 1000)}s`;
-    state.lastScanDuration = durationMs;
-    
-    const now = new Date();
-    const timestamp = now.toLocaleString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).replace(',', '');
-    
-    const lastScanEl = document.getElementById('lastScanTime');
-    if (lastScanEl) {
-      lastScanEl.textContent = `Last scan: ${timestamp}`;
-    }
-    
+    sse.addEventListener('game', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const game = data.game;
+        state.games.push(game);
+        state.filteredGames = applyFiltersAndSort();
+        renderTable();
+        updateSummary();
+        progressEl.textContent = `Calculating: ${game.name} (${data.current}/${data.total})...`;
+      } catch {
+        progressEl.textContent = event.data;
+      }
+    });
+
+    sse.addEventListener('complete', (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const { totalGames, totalSize, durationMs, notes } = data;
+        statusEl.textContent = `Complete: ${totalGames} games, ${formatSize(totalSize)}`;
+        progressEl.textContent = `Duration: ${Math.round(durationMs / 1000)}s`;
+          state.lastScanDuration = durationMs;
+        
+        const now = new Date();
+        const timestamp = now.toLocaleString('en-US', {
+          month: '2-digit',
+          day: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).replace(',', '');
+        
+        const lastScanEl = document.getElementById('lastScanTime');
+        if (lastScanEl) {
+          lastScanEl.textContent = `Last scan: ${timestamp}`;
+        }
+        
+        scanBtn.disabled = false;
+        
+        if (notes && notes.length > 0) {
+          displayNotes(notes);
+        }
+        
+        sse.close();
+        state.sse = null;
+      } catch {
+        statusEl.textContent = `Complete: ${event.data}`;
+      }
+    });
+
+    sse.addEventListener('ping', (event) => {
+      // Silent keep-alive
+    });
+
+    sse.addEventListener('error', (event) => {
+      console.log('SSE error event:', { event, data: event.data, currentTarget: event.currentTarget });
+      statusEl.textContent = 'Error occurred';
+      scanBtn.disabled = true;
+      sse.close();
+    });
+
+    sse.addEventListener('open', () => {
+      console.log('SSE connection opened');
+    });
+
+    state.sse = sse;
+  } catch (err) {
+    console.error('Scan error:', err);
+    statusEl.textContent = `Error: ${err.message}`;
     scanBtn.disabled = false;
-    
-    if (notes && notes.length > 0) {
-      displayNotes(notes);
-    }
-    
-    state.sse.close();
-  });
-
-  state.sse.addEventListener('error', (event) => {
-    const data = JSON.parse(event.data);
-    statusEl.textContent = `Error: ${data.message}`;
-    scanBtn.disabled = true;
-    state.sse.close();
-  });
-
-  state.sse.onerror = () => {
-    statusEl.textContent = 'Connection error';
-    state.sse.close();
-    scanBtn.disabled = false;
-  };
-
-  await fetch('/api/scan', { method: 'POST' });
+  }
 }
 
 function applyFiltersAndSort() {

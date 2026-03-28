@@ -7,7 +7,8 @@ import foldersRoutes from './routes/folders.js';
 import openRoutes from './routes/open.js';
 import { getPort, setPort, getCustomPaths } from './services/settingsService.js';
 import { loadConfigFile } from './services/configFileService.js';
-import { updateScanResults, isPathWithinKnownLocations, setCustomConfigPath, getCustomConfigPath, normalizePath, scanResults } from './services/sharedState.js';
+import { updateScanResults, isPathWithinKnownLocations, setCustomConfigPath, normalizePath, scanResults } from './services/sharedState.js';
+import { getCustomConfigPath } from './services/sharedState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,7 +76,7 @@ process.on('SIGTERM', () => {
   });
 });
 
-export { app, server, noAutoShutdown, setNoAutoShutdown, getCustomPaths, activeSses };
+export { app, server, noAutoShutdown, setNoAutoShutdown, getCustomPaths, activeSses, getCustomConfigPath };
 
 function setNoAutoShutdown(value) {
   noAutoShutdown = value;

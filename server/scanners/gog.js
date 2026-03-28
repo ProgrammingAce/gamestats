@@ -1,5 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join, expandTilde } from 'path';
+import { join } from 'path';
+
+function expandTilde(path) {
+  if (path.charAt(0) === '~') {
+    const home = process.env.HOME || process.env.USERPROFILE || '';
+    return home + path.slice(1);
+  }
+  return path;
+}
 import { info, warn } from '../log.js';
 
 const GOG_GAMES_PATH = 'C:\\Program Files (x86)\\GOG Galaxy\\Games';

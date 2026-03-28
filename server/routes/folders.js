@@ -4,15 +4,14 @@ import {
   addCustomPath,
   removeCustomPath,
   getCustomPaths,
-  loadConfigFile,
 } from '../services/settingsService.js';
 import { loadConfigFile as loadProjectConfig } from '../services/configFileService.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const customPaths = getCustomPaths();
-  const projectConfig = loadProjectConfig();
+  const projectConfig = await loadProjectConfig();
 
   res.json({
     settings: customPaths,

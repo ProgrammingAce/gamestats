@@ -77,7 +77,7 @@ export class ScanOrchestrator {
       const size = await this.sizeCalculator.calculateSize(game.path, signal);
       game.size = size;
 
-      sseSend({
+      const broadcastData = {
         event: 'game',
         data: {
           phase: 'calculating',
@@ -85,7 +85,9 @@ export class ScanOrchestrator {
           total: dedupedGames.length,
           game,
         },
-      });
+      };
+      sseSend(broadcastData);
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
     launcherResults.filter(r => r.notes && r.notes.length > 0).forEach(r => {
