@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(find /Users/ace/code/gamestats -not -path */node_modules/* -type f -o -type d)",
-      "Bash(grep -v \"^\\\\.$\")"
-    ]
-  }
-}
