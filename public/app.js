@@ -30,24 +30,29 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-async function loadFolders() {
+async function loadFolders(page = '') {
   try {
     const res = await fetch('/api/folders');
     const data = await res.json();
     
     state.customPaths = data.settings.map(path => ({ path, name: null }));
-    renderFolders(data.settings, data.config, data.configFileFound);
+    renderFolders(data.settings, data.config, data.configFileFound, page);
   } catch (err) {
     console.error('Failed to load folders:', err);
   }
 }
 
-function renderFolders(userFolders, configFolders, configFileFound) {
-  const userList = document.getElementById('userFoldersList');
-  const configList = document.getElementById('configFoldersList');
-  const configHint = document.getElementById('configHint');
+function renderFolders(userFolders, configFolders, configFileFound, page = '') {
+  const prefix = page ? `#userFoldersList${page}` : '#userFoldersList';
+  const userList = document.querySelector(prefix);
+  const configList = document.querySelector(`#configFoldersList${page}`);
+  const configHint = document.querySelector(`#configHint${page}`);
+  const addFolderBtn = document.getElementById(`addFolderBtn${page}`);
+  const newFolderPath = document.getElementById(`newFolderPath${page}`);
 
-  userList.innerHTML = userFolders.map(path => `
+  if (!userList) return;
+
+  const userFoldersHTML = userFolders.map(path => `
     <div class="folder-item">
       <div class="folder-info">
         <div class="folder-path">${escapeHtml(path)}</div>
@@ -56,7 +61,7 @@ function renderFolders(userFolders, configFolders, configFileFound) {
     </div>
   `).join('') || '<p class="hint">No custom folders</p>';
 
-  configList.innerHTML = configFolders.map(folder => `
+  const configFoldersHTML = configFolders.map(folder => `
     <div class="folder-item config">
       <div class="folder-info">
         <div class="folder-path">${escapeHtml(folder.path)}</div>
@@ -65,22 +70,28 @@ function renderFolders(userFolders, configFolders, configFileFound) {
     </div>
   `).join('') || '<p class="hint">No config file found</p>';
 
-  configHint.style.display = configFileFound ? 'none' : 'block';
+  userList.innerHTML = userFoldersHTML;
+  configList.innerHTML = configFoldersHTML;
+
+  if (configHint) {
+    configHint.style.display = configFileFound ? 'none' : 'block';
+  }
 }
 
-async function loadLaunchers() {
+async function loadLaunchers(page = '') {
   try {
     const res = await fetch('/api/launchers');
     const settings = await res.json();
-    renderLaunchers(settings);
-    renderLauncherFolders(settings.folders || {});
+    renderLaunchers(settings, page);
+    renderLauncherFolders(settings.folders || {}, page);
   } catch (err) {
     console.error('Failed to load launchers:', err);
   }
 }
 
-function renderLaunchers(launchers) {
-  const launcherList = document.getElementById('launcherList');
+function renderLaunchers(launchers, page = '') {
+  const prefix = page ? `#launcherList${page}` : '#launcherList';
+  const launcherList = document.querySelector(prefix);
   const launcherNames = [
     { key: 'steam', label: 'Steam' },
     { key: 'epic', label: 'Epic Games' },
@@ -90,6 +101,8 @@ function renderLaunchers(launchers) {
     { key: 'xbox', label: 'Xbox' },
     { key: 'battlenet', label: 'Battle.net' },
   ];
+
+  if (!launcherList) return;
 
   launcherList.innerHTML = launcherNames.map(({ key, label }) => `
     <div class="launcher-item">
@@ -112,8 +125,9 @@ async function toggleLauncher(name, enabled) {
   }
 }
 
-function renderLauncherFolders(folders) {
-  const launcherFoldersList = document.getElementById('launcherFoldersList');
+function renderLauncherFolders(folders, page = '') {
+  const prefix = page ? `#launcherFoldersList${page}` : '#launcherFoldersList';
+  const launcherFoldersList = document.querySelector(prefix);
   const launcherNames = [
     { key: 'steam', label: 'Steam' },
     { key: 'epic', label: 'Epic Games' },
@@ -124,6 +138,8 @@ function renderLauncherFolders(folders) {
     { key: 'battlenet', label: 'Battle.net' },
   ];
 
+  if (!launcherFoldersList) return;
+
   launcherFoldersList.innerHTML = launcherNames.map(({ key, label }) => {
     const folder = folders[key] || '';
     return `
@@ -131,7 +147,7 @@ function renderLauncherFolders(folders) {
         <div class="folder-label">${label}</div>
         <input type="text" 
           class="folder-input" 
-          id="folder-${key}"
+          id="folder-${key}${page}"
           data-launcher="${key}" 
           placeholder="Default ${label} folder" 
           value="${escapeHtml(folder)}">
@@ -154,7 +170,12 @@ async function startScan() {
   
   state.games = [];
   state.filteredGames = [];
-  renderTable();
+  const tbody = document.getElementById('gameTableBody');
+  tbody.innerHTML = '';
+
+  if (state.sse) {
+    state.sse.close();
+  }
 
   try {
     const postRes = await fetch('/api/scan', { method: 'POST' });
@@ -166,30 +187,43 @@ async function startScan() {
 
     sse.addEventListener('progress', (event) => {
       try {
-        const data = JSON.parse(event.data);
-        statusEl.textContent = `Scanning: ${data.launcher} (${data.gamesFound} games)`;
-      } catch {
+        let data = JSON.parse(event.data);
+        console.log('Progress event:', data);
+        if (data.data) data = data.data;
+        if (data.launcher) statusEl.textContent = `Scanning: ${data.launcher} (${data.gamesFound} games)`;
+        else statusEl.textContent = `Scanning: ${event.data}`;
+      } catch (err) {
+        console.error('Progress parse error:', err, event.data);
         statusEl.textContent = `Scanning: ${event.data}`;
       }
     });
 
-    sse.addEventListener('game', (event) => {
+sse.addEventListener('game', (event) => {
       try {
-        const data = JSON.parse(event.data);
-        const game = data.game;
-        state.games.push(game);
-        state.filteredGames = applyFiltersAndSort();
-        renderTable();
-        updateSummary();
-        progressEl.textContent = `Calculating: ${game.name} (${data.current}/${data.total})...`;
-      } catch {
+        let data = JSON.parse(event.data);
+        console.log('Game event raw:', data);
+        if (data.data) data = data.data;
+        if (data.game) {
+          state.games.push(data.game);
+          state.filteredGames = applyFiltersAndSort();
+          renderTable();
+          updateSummary();
+          progressEl.textContent = `Calculating: ${data.game.name} (${data.current}/${data.total})...`;
+        }
+      } catch (err) {
+        console.error('Game event error:', err, event.data);
         progressEl.textContent = event.data;
       }
     });
 
     sse.addEventListener('complete', (event) => {
       try {
-        const data = JSON.parse(event.data);
+        let data = JSON.parse(event.data);
+        console.log('Complete event raw:', data);
+        if (data.data) {
+          data = data.data;
+          console.log('Complete event unwrapped:', data);
+        }
         const { totalGames, totalSize, durationMs, notes } = data;
         statusEl.textContent = `Complete: ${totalGames} games, ${formatSize(totalSize)}`;
         progressEl.textContent = `Duration: ${Math.round(durationMs / 1000)}s`;
@@ -240,7 +274,11 @@ async function startScan() {
     });
 
     sse.addEventListener('open', () => {
-      console.log('SSE connection opened');
+      console.log('SSE connection opened, readyState:', sse.readyState);
+    });
+
+    sse.addEventListener('message', (event) => {
+      console.log('Raw SSE message:', event.type, event.data);
     });
 
     state.sse = sse;
@@ -286,15 +324,19 @@ function renderTable() {
   const tbody = document.getElementById('gameTableBody');
   const filterInput = document.getElementById('filterInput');
 
-  tbody.innerHTML = state.filteredGames.map((game, index) => `
-    <tr>
-      <td class="rank">${index + 1}</td>
-      <td class="game-name">${escapeHtml(game.name)}</td>
-      <td class="launcher">${escapeHtml(game.launcher)}</td>
-      <td class="size">${formatSize(game.size)}</td>
-      <td class="path" title="${escapeHtml(game.path)}" data-path="${game.path}">${escapeHtml(game.path)}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="5" class="empty-state">No games found. Try adding a custom scan folder.</td></tr>';
+  if (state.filteredGames.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Scanning...</td></tr>';
+  } else {
+    tbody.innerHTML = state.filteredGames.map((game, index) => `
+      <tr>
+        <td class="rank">${index + 1}</td>
+        <td class="game-name">${escapeHtml(game.name)}</td>
+        <td class="launcher">${escapeHtml(game.launcher)}</td>
+        <td class="size">${formatSize(game.size)}</td>
+        <td class="path" title="${escapeHtml(game.path)}" data-path="${game.path}">${escapeHtml(game.path)}</td>
+      </tr>
+    `).join('');
+  }
 
   tbody.querySelectorAll('.path').forEach(el => {
     el.addEventListener('click', () => openFolder(el.dataset.path));
@@ -462,61 +504,87 @@ async function resetFolderOverride(launcher) {
 
 document.addEventListener('DOMContentLoaded', () => {
   const scanBtn = document.getElementById('scanBtn');
+  if (scanBtn) {
+    scanBtn.addEventListener('click', startScan);
+  }
+
   const manageBtn = document.getElementById('manageBtn');
-  const managePanels = document.getElementById('managePanels');
+  if (manageBtn) {
+    manageBtn.addEventListener('click', () => {
+      showFoldersPage();
+    });
+  }
+
   const filterInput = document.getElementById('filterInput');
-  const addFolderBtn = document.getElementById('addFolderBtn');
-  const newFolderPath = document.getElementById('newFolderPath');
-  const launcherList = document.getElementById('launcherList');
-
-  loadFolders();
-  loadLaunchers();
-
-  scanBtn.addEventListener('click', startScan);
-
-  manageBtn.addEventListener('click', toggleManagePanels);
-
-  managePanels.addEventListener('click', async (e) => {
-    if (e.target.classList.contains('btn-danger')) {
-      const path = e.target.dataset.path;
-      if (confirm(`Remove ${path}?`)) {
-        await removeCustomFolder(path);
-      }
-    }
-  });
-
-  filterInput.addEventListener('input', (e) => {
-    state.filter = e.target.value;
-    state.filteredGames = applyFiltersAndSort();
-    renderTable();
-  });
+  if (filterInput) {
+    filterInput.addEventListener('input', (e) => {
+      state.filter = e.target.value;
+      state.filteredGames = applyFiltersAndSort();
+      renderTable();
+    });
+  }
 
   document.querySelectorAll('th.sortable').forEach(th => {
     th.addEventListener('click', () => toggleSort(th.dataset.sort));
   });
 
-  addFolderBtn.addEventListener('click', addCustomFolder);
-
-  newFolderPath.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      addCustomFolder();
-    }
+  document.querySelectorAll('#userFoldersList, #userFoldersList2').forEach(userList => {
+    userList.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('btn-danger')) {
+        const path = e.target.dataset.path;
+        await removeCustomFolder(path);
+        const page = userList.id === 'userFoldersList2' ? '2' : '';
+        loadFolders(page);
+      }
+    });
   });
 
-  launcherList.addEventListener('change', (e) => {
-    if (e.target.type === 'checkbox' && e.target.dataset.launcher) {
-      const name = e.target.dataset.launcher;
-      toggleLauncher(name, e.target.checked);
-    }
+  document.querySelectorAll('#addFolderBtn, #addFolderBtn2').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const page = btn.id === 'addFolderBtn2' ? '2' : '';
+      const newFolderPath = document.getElementById(`newFolderPath${page}`);
+      if (newFolderPath) {
+        const path = newFolderPath.value.trim();
+        if (path) {
+          await addCustomFolder(path);
+          newFolderPath.value = '';
+          loadFolders(page);
+        }
+      }
+    });
   });
 
-  const launcherFoldersList = document.getElementById('launcherFoldersList');
-  if (launcherFoldersList) {
-    launcherFoldersList.addEventListener('click', async (e) => {
+  document.querySelectorAll('#newFolderPath, #newFolderPath2').forEach(input => {
+    input.addEventListener('keypress', async (e) => {
+      if (e.key === 'Enter') {
+        const path = input.value.trim();
+        if (path) {
+          await addCustomFolder(path);
+          input.value = '';
+          const page = input.id === 'newFolderPath2' ? '2' : '';
+          loadFolders(page);
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll('#launcherList, #launcherList2').forEach(list => {
+    list.addEventListener('change', (e) => {
+      if (e.target.type === 'checkbox' && e.target.dataset.launcher) {
+        const name = e.target.dataset.launcher;
+        toggleLauncher(name, e.target.checked);
+      }
+    });
+  });
+
+  document.querySelectorAll('#launcherFoldersList, #launcherFoldersList2').forEach(list => {
+    list.addEventListener('click', async (e) => {
       if (e.target.classList.contains('btn-save-folder')) {
         const launcher = e.target.dataset.launcher;
-        const input = launcherFoldersList.querySelector(`[data-launcher="${launcher}"]`);
-        await saveFolderOverride(launcher, input.value.trim());
+        const input = list.querySelector(`[data-launcher="${launcher}"]`);
+        if (input) {
+          await saveFolderOverride(launcher, input.value.trim());
+        }
       } else if (e.target.classList.contains('btn-reset-folder')) {
         const launcher = e.target.dataset.launcher;
         await resetFolderOverride(launcher);
@@ -526,20 +594,45 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    launcherFoldersList.addEventListener('keypress', (e) => {
+    list.addEventListener('keypress', (e) => {
       if (e.target.classList.contains('folder-input') && e.key === 'Enter') {
         const launcher = e.target.dataset.launcher;
         e.target.blur();
         saveFolderOverride(launcher, e.target.value.trim());
       }
     });
-  }
-
-  const initialPath = window.location.pathname.startsWith('/') 
-    ? window.location.pathname.slice(1) 
-    : window.location.pathname;
-  
-  if (initialPath && initialPath.length > 0) {
-    newFolderPath.value = initialPath;
-  }
+  });
 });
+
+ function showFoldersPage() {
+  document.getElementById('managePanels').style.display = 'none';
+  document.getElementById('foldersPage').style.display = 'flex';
+  loadFolders();
+  loadFolders('2');
+  loadLaunchers();
+  loadLaunchers('2');
+}
+
+function showHomePage() {
+  document.getElementById('foldersPage').style.display = 'none';
+  document.getElementById('managePanels').style.display = 'grid';
+}
+
+function showFoldersPage() {
+  document.getElementById('managePanels').style.display = 'none';
+  document.getElementById('foldersPage').style.display = 'flex';
+  loadFolders();
+  loadFolders('2');
+  loadLaunchers();
+  loadLaunchers('2');
+}
+
+function showHomePage() {
+  document.getElementById('foldersPage').style.display = 'none';
+  document.getElementById('managePanels').style.display = 'grid';
+}
+
+const backToHomeBtn = document.getElementById('backToHomeBtn');
+if (backToHomeBtn) {
+  backToHomeBtn.addEventListener('click', showHomePage);
+}

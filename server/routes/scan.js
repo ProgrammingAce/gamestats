@@ -103,9 +103,7 @@ router.get('/', (req, res) => {
     keepAlive();
   }, 15000);
 
-  if (scanHasRun) {
-    res.write('event: progress\ndata: {"phase":"scanning","launcher":"Existing scan","gamesFound":0}\n\n');
-  } else {
+  if (!scanHasRun) {
     scanHasRun = true;
     info('Auto-triggering initial scan');
     const startTime = Date.now();
@@ -126,9 +124,12 @@ router.get('/', (req, res) => {
         completeScan([], 0, startTime, []);
       }
     });
+  } else {
+    res.write('event: progress\ndata: {"phase":"scanning","launcher":"Existing scan","gamesFound":0}\n\n');
+    res.end();
   }
 
-req.once('close', () => {
+ req.once('close', () => {
     clearInterval(keepAliveInterval);
     const index = activeSses.indexOf(res);
     if (index > -1) {
@@ -137,7 +138,7 @@ req.once('close', () => {
     }
   });
 
-req.on('error', (err) => {
+ req.on('error', (err) => {
     clearInterval(keepAliveInterval);
     info('SSE connection error:', err.message);
     const index = activeSses.indexOf(res);
@@ -146,37 +147,14 @@ req.on('error', (err) => {
     }
   });
 
-return res;
+ return res;
 });
 
-router.post('/', async (req, res) => {
-   info('Scan started (POST)');
-   
-   const startTime = Date.now();
-   res.setHeader('Content-Type', 'application/json');
-
-  if (!scanHasRun) {
-    await new Promise(resolve => setTimeout(resolve, 300));
-  }
-
+router.post('/', (req, res) => {
+  info('Scan reset (POST)');
+  orchestrator.abort();
+  scanHasRun = false;
   res.json({ status: 'started' });
-
-  try {
-    orchestrator.abort();
-
-    const result = await orchestrator.startScan(startTime, broadcastSse);
-    const games = Array.isArray(result) ? result : result.games;
-    const notes = Array.isArray(result) ? [] : result.notes || [];
-
-    const duration = Date.now() - startTime;
-    completeScan(games, duration, startTime, notes);
-  } catch (err) {
-    if (err.message === 'Size calculation aborted') {
-      info('Scan aborted by user');
-    } else {
-      warn(`Scan error: ${err.message}`);
-    }
-  }
 });
 
 router.get('/restart', (req, res) => {

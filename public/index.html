@@ -78,6 +78,37 @@
         <div id="launcherFoldersList" class="launcher-folders-list"></div>
       </div>
     </div>
+
+    <div id="foldersPage" class="folders-page">
+      <button id="backToHomeBtn" class="btn btn-secondary">← Back to Home</button>
+      <div class="manage-panels">
+        <div class="panel" id="userFoldersPanel2">
+          <h2>User Folders</h2>
+          <div class="add-folder">
+            <input type="text" id="newFolderPath2" placeholder="Enter path (e.g., D:\Games)" class="path-input">
+            <button id="addFolderBtn2" class="btn btn-small">Add</button>
+          </div>
+          <div id="userFoldersList2" class="folders-list"></div>
+        </div>
+
+        <div class="panel" id="configFoldersPanel2">
+          <h2>Config File Folders</h2>
+          <div id="configFoldersList2" class="folders-list"></div>
+          <p class="hint" id="configHint2">Place a gamestats.config.json in your working directory to pre-configure scan paths.</p>
+        </div>
+
+        <div class="panel" id="launcherPanel2">
+          <h2>Launchers</h2>
+          <div id="launcherList2" class="launcher-list"></div>
+        </div>
+
+        <div class="panel" id="launcherFoldersPanel2">
+          <h2>Launcher Folders</h2>
+          <p class="hint">Override default folder paths for each launcher:</p>
+          <div id="launcherFoldersList2" class="launcher-folders-list"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
