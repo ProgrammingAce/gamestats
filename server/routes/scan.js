@@ -193,5 +193,77 @@ router.get('/restart', (req, res) => {
   return res.json({ status: 'restarted' });
 });
 
+router.post('/browse-folder', async (req, res) => {
+  const { launcher } = req.body;
+  info(`Browse folder requested for launcher: ${launcher}`);
+  
+  const { spawn } = await import('child_process');
+  
+  let cmd, args, options;
+  
+  if (process.platform === 'win32') {
+    cmd = 'powershell.exe';
+    args = [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `Add-Type -AssemblyName System.Windows.Forms; $dialog = New-Object System.Windows.Forms.FolderBrowserDialog; $dialog.Description = 'Select folder for ${launcher}'; $dialog.RootFolder = 'Desktop'; if ($dialog.ShowDialog() -eq 'OK') { Write-Host $dialog.SelectedPath }`
+    ];
+    options = { shell: true };
+    info(`Windows: Using ${cmd} with ${args.length} args`);
+  } else if (process.platform === 'darwin') {
+    cmd = 'osascript';
+    args = [
+      '-e',
+      `try
+        set chosenFolder to choose folder with prompt "Select folder for ${launcher}:"
+        POSIX path of chosenFolder
+      on error
+        ""
+      end try`
+    ];
+    options = {};
+    info(`macOS: Using ${cmd}`);
+  } else {
+    cmd = 'zenity';
+    args = ['--file-selection', '--directory', '--title=Select folder for ' + launcher];
+    options = {};
+    info(`Linux: Using ${cmd}`);
+  }
+  
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    
+    const proc = spawn(cmd, args, options);
+    
+    proc.stdout.on('data', (data) => {
+      stdout += data.toString();
+      info(`stdout: ${data.toString().trim()}`);
+    });
+    
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString();
+      info(`stderr: ${data.toString().trim()}`);
+    });
+    
+    proc.on('close', (code) => {
+      info(`Process closed with code: ${code}`);
+      if (stdout.trim()) {
+        info(`Sending folder: ${stdout.trim()}`);
+        resolve(res.json({ folder: stdout.trim() }));
+      } else {
+        info(`Sending empty folder, error: ${code || 'cancelled'}`);
+        resolve(res.json({ folder: '', error: code || 'cancelled' }));
+      }
+    });
+    
+    proc.on('error', (err) => {
+      info(`Process error: ${err.message}`);
+      resolve(res.json({ folder: '', error: err.message }));
+    });
+  });
+});
+
 export default router;
 export { activeSses };

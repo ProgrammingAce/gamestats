@@ -68,6 +68,81 @@ function renderFolders(userFolders, configFolders, configFileFound) {
   configHint.style.display = configFileFound ? 'none' : 'block';
 }
 
+async function loadLaunchers() {
+  try {
+    const res = await fetch('/api/launchers');
+    const settings = await res.json();
+    renderLaunchers(settings);
+    renderLauncherFolders(settings.folders || {});
+  } catch (err) {
+    console.error('Failed to load launchers:', err);
+  }
+}
+
+function renderLaunchers(launchers) {
+  const launcherList = document.getElementById('launcherList');
+  const launcherNames = [
+    { key: 'steam', label: 'Steam' },
+    { key: 'epic', label: 'Epic Games' },
+    { key: 'gog', label: 'GOG' },
+    { key: 'ea', label: 'EA App' },
+    { key: 'ubisoft', label: 'Ubisoft Connect' },
+    { key: 'xbox', label: 'Xbox' },
+    { key: 'battlenet', label: 'Battle.net' },
+  ];
+
+  launcherList.innerHTML = launcherNames.map(({ key, label }) => `
+    <div class="launcher-item">
+      <input type="checkbox" id="launcher-${key}" data-launcher="${key}" ${launchers[key] ? 'checked' : ''}>
+      <label for="launcher-${key}">${label}</label>
+    </div>
+  `).join('');
+}
+
+async function toggleLauncher(name, enabled) {
+  try {
+    await fetch(`/api/launchers/${name}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    await loadLaunchers();
+  } catch (err) {
+    console.error(`Failed to toggle ${name}:`, err);
+  }
+}
+
+function renderLauncherFolders(folders) {
+  const launcherFoldersList = document.getElementById('launcherFoldersList');
+  const launcherNames = [
+    { key: 'steam', label: 'Steam' },
+    { key: 'epic', label: 'Epic Games' },
+    { key: 'gog', label: 'GOG' },
+    { key: 'ea', label: 'EA App' },
+    { key: 'ubisoft', label: 'Ubisoft Connect' },
+    { key: 'xbox', label: 'Xbox' },
+    { key: 'battlenet', label: 'Battle.net' },
+  ];
+
+  launcherFoldersList.innerHTML = launcherNames.map(({ key, label }) => {
+    const folder = folders[key] || '';
+    return `
+      <div class="launcher-folder-item">
+        <div class="folder-label">${label}</div>
+        <input type="text" 
+          class="folder-input" 
+          id="folder-${key}"
+          data-launcher="${key}" 
+          placeholder="Default ${label} folder" 
+          value="${escapeHtml(folder)}">
+        <button class="btn btn-small btn-browse-folder" data-launcher="${key}" title="Browse folder">📁</button>
+        <button class="btn btn-small btn-save-folder" data-launcher="${key}">Save</button>
+        ${folder ? `<button class="btn btn-small btn-reset-folder" data-launcher="${key}">Reset</button>` : ''}
+      </div>
+    `;
+  }).join('') || '<p class="hint">Configure launcher folders</p>';
+}
+
 async function startScan() {
   const statusEl = document.getElementById('scanStatus');
   const progressEl = document.getElementById('scanProgress');
@@ -153,10 +228,15 @@ async function startScan() {
     });
 
     sse.addEventListener('error', (event) => {
-      console.log('SSE error event:', { event, data: event.data, currentTarget: event.currentTarget });
+      console.log('SSE error event:', { event, data: event.data, currentTarget: event.currentTarget, source: event.currentTarget?.src });
       statusEl.textContent = 'Error occurred';
       scanBtn.disabled = true;
       sse.close();
+      console.error('Full error event:', JSON.stringify(event, (key, value) => {
+        if (value instanceof Event) return '[Event]';
+        if (value instanceof Object && value.src) return '[EventSource]';
+        return value;
+      }, 2));
     });
 
     sse.addEventListener('open', () => {
@@ -323,6 +403,63 @@ async function removeCustomFolder(path) {
   }
 }
 
+async function saveFolderOverride(launcher, folder) {
+  try {
+    await fetch(`/api/launchers/${launcher}/folder`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder }),
+    });
+    await loadLaunchers();
+  } catch (err) {
+    console.error(`Failed to save folder for ${launcher}:`, err);
+  }
+}
+
+async function browseFolder(launcher) {
+  console.log('Browsing folder for:', launcher);
+  try {
+    const response = await fetch('/api/scan/browse-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ launcher }),
+    });
+    
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Server error: ${response.status} - ${errText}`);
+    }
+    
+    const { folder, error } = await response.json();
+    console.log('Response data:', { folder, error });
+    
+    const input = document.getElementById(`folder-${launcher}`);
+    if (input && folder) {
+      input.value = folder;
+      await saveFolderOverride(launcher, folder);
+    } else if (error) {
+      console.error('Browse folder error:', error);
+    }
+  } catch (err) {
+    console.error(`Failed to browse folder for ${launcher}:`, err);
+    alert('Failed to open folder picker: ' + err.message);
+  }
+}
+
+async function resetFolderOverride(launcher) {
+  try {
+    await fetch(`/api/launchers/${launcher}/folder`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    await loadLaunchers();
+  } catch (err) {
+    console.error(`Failed to reset folder for ${launcher}:`, err);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const scanBtn = document.getElementById('scanBtn');
   const manageBtn = document.getElementById('manageBtn');
@@ -330,8 +467,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterInput = document.getElementById('filterInput');
   const addFolderBtn = document.getElementById('addFolderBtn');
   const newFolderPath = document.getElementById('newFolderPath');
+  const launcherList = document.getElementById('launcherList');
 
   loadFolders();
+  loadLaunchers();
 
   scanBtn.addEventListener('click', startScan);
 
@@ -363,6 +502,38 @@ document.addEventListener('DOMContentLoaded', () => {
       addCustomFolder();
     }
   });
+
+  launcherList.addEventListener('change', (e) => {
+    if (e.target.type === 'checkbox' && e.target.dataset.launcher) {
+      const name = e.target.dataset.launcher;
+      toggleLauncher(name, e.target.checked);
+    }
+  });
+
+  const launcherFoldersList = document.getElementById('launcherFoldersList');
+  if (launcherFoldersList) {
+    launcherFoldersList.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('btn-save-folder')) {
+        const launcher = e.target.dataset.launcher;
+        const input = launcherFoldersList.querySelector(`[data-launcher="${launcher}"]`);
+        await saveFolderOverride(launcher, input.value.trim());
+      } else if (e.target.classList.contains('btn-reset-folder')) {
+        const launcher = e.target.dataset.launcher;
+        await resetFolderOverride(launcher);
+      } else if (e.target.classList.contains('btn-browse-folder')) {
+        const launcher = e.target.dataset.launcher;
+        await browseFolder(launcher);
+      }
+    });
+
+    launcherFoldersList.addEventListener('keypress', (e) => {
+      if (e.target.classList.contains('folder-input') && e.key === 'Enter') {
+        const launcher = e.target.dataset.launcher;
+        e.target.blur();
+        saveFolderOverride(launcher, e.target.value.trim());
+      }
+    });
+  }
 
   const initialPath = window.location.pathname.startsWith('/') 
     ? window.location.pathname.slice(1) 

@@ -19,17 +19,52 @@ export function loadSettings() {
     return {
       customScanPaths: [],
       port: 3847,
+      launchers: {
+        steam: true,
+        epic: true,
+        gog: true,
+        ea: true,
+        ubisoft: true,
+        xbox: true,
+        battlenet: true,
+      },
     };
   }
 
   try {
     const content = readFileSync(SETTINGS_FILE, 'utf-8');
-    return JSON.parse(content);
+    const settings = JSON.parse(content);
+    if (!settings.launchers) {
+      settings.launchers = {
+        steam: true,
+        epic: true,
+        gog: true,
+        ea: true,
+        ubisoft: true,
+        xbox: true,
+        battlenet: true,
+      };
+    } else if (!settings.launchers.battlenet) {
+      settings.launchers.battlenet = true;
+    }
+    if (!settings.customScanPaths) {
+      settings.customScanPaths = [];
+    }
+    return settings;
   } catch (err) {
     error(`Failed to parse settings.json: ${err.message}`);
     return {
       customScanPaths: [],
       port: 3847,
+      launchers: {
+        steam: true,
+        epic: true,
+        gog: true,
+        ea: true,
+        ubisoft: true,
+        xbox: true,
+        battlenet: true,
+      },
     };
   }
 }
@@ -85,6 +120,26 @@ export function setPort(port) {
   settings.port = port;
   saveSettings(settings);
   return settings.port;
+}
+
+export function getLauncherSettings() {
+  const settings = loadSettings();
+  return {
+    ...settings.launchers,
+    folders: settings.folders || {},
+  };
+}
+
+export function setLauncherSetting(name, enabled) {
+  const settings = loadSettings();
+  settings.launchers[name] = enabled;
+  saveSettings(settings);
+  return settings.launchers;
+}
+
+export function getLauncherFolders() {
+  const settings = loadSettings();
+  return settings.folders || {};
 }
 
 function normalizePath(path) {

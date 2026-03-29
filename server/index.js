@@ -5,6 +5,7 @@ import { info, warn, error } from './log.js';
 import scanRoutes, { activeSses } from './routes/scan.js';
 import foldersRoutes from './routes/folders.js';
 import openRoutes from './routes/open.js';
+import launcherRoutes from './routes/launchers.js';
 import { getPort, setPort, getCustomPaths } from './services/settingsService.js';
 import { loadConfigFile } from './services/configFileService.js';
 import { updateScanResults, isPathWithinKnownLocations, setCustomConfigPath, normalizePath, scanResults } from './services/sharedState.js';
@@ -31,6 +32,7 @@ app.get('/', (req, res) => {
 app.use('/api/scan', scanRoutes);
 app.use('/api/folders', foldersRoutes);
 app.use('/api/open', openRoutes);
+app.use('/api/launchers', launcherRoutes);
 
 function resetIdleTimer() {
   if (idleTimer) {

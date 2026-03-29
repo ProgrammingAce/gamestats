@@ -5,11 +5,21 @@ import gog from '../scanners/gog.js';
 import ea from '../scanners/ea.js';
 import ubisoft from '../scanners/ubisoft.js';
 import xbox from '../scanners/xbox.js';
+import battlenet from '../scanners/battlenet.js';
 import customFolder from '../scanners/customFolder.js';
 import { DirectorySizeCalculator } from '../services/directorySizeCalculator.js';
-import { getCustomPaths } from '../services/settingsService.js';
+import { getCustomPaths, getLauncherSettings } from '../services/settingsService.js';
 
-const SCANNERS = [steam, epic, gog, ea, ubisoft, xbox];
+const ALL_SCANNERS = [steam, epic, gog, ea, ubisoft, xbox, battlenet];
+
+function getEnabledScanners() {
+  const settings = getLauncherSettings();
+  return ALL_SCANNERS.filter((scanner) => {
+    const launcherName = scanner.launcherName.toLowerCase();
+    if (settings[launcherName] === false) return false;
+    return settings.launchers?.[launcherName] !== false;
+  });
+}
 
 export class ScanOrchestrator {
   constructor() {
@@ -27,8 +37,8 @@ export class ScanOrchestrator {
     const customPaths = getCustomPaths();
     const allNotes = [];
 
-    // Run all launcher scanners in parallel
-    const scannerPromises = SCANNERS.map(async (scanner) => {
+// Run enabled launcher scanners in parallel
+     const scannerPromises = getEnabledScanners().map(async (scanner) => {
       const isAvailable = await scanner.isAvailable();
       
       let games = [];
