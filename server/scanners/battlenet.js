@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { getLauncherFolders } from '../services/settingsService.js';
+import { info, warn } from '../log.js';
 
 const SCANNER_NAME = 'Battle.net';
 
@@ -42,19 +43,19 @@ function getBattleNetPaths() {
 
 export const isAvailable = async () => {
   const paths = getBattleNetPaths();
-  console.log(`[Battle.net] isAvailable: found ${paths.length} paths:`, paths);
+  info(`[Battle.net] isAvailable: found ${paths.length} paths:`, paths);
   return paths.length > 0;
 };
 
 export const scan = async function(signal) {
   const paths = getBattleNetPaths();
-  console.log(`[Battle.net] scan: scanning ${paths.length} paths:`, paths);
+  info(`[Battle.net] scan: scanning ${paths.length} paths:`, paths);
   const games = [];
   
   for (const path of paths) {
     if (signal.aborted) break;
     
-    console.log(`[Battle.net] Checking path: ${path}`);
+    info(`[Battle.net] Checking path: ${path}`);
     
     const gamesConfig = join(path, 'InstalledGames.json');
     const gamesFolder = join(path, 'Games');
@@ -80,14 +81,14 @@ export const scan = async function(signal) {
           }
         }
       } catch (err) {
-        console.warn(`[Battle.net] Failed to parse ${gamesConfig}: ${err.message}`);
+        warn(`[Battle.net] Failed to parse ${gamesConfig}: ${err.message}`);
       }
     }
     
     if (existsSync(gamesFolder)) {
       try {
         const gameIds = await getGameIdsFromDir(gamesFolder);
-        console.log(`[Battle.net] Found ${gameIds.length} games in ${gamesFolder}`);
+        info(`[Battle.net] Found ${gameIds.length} games in ${gamesFolder}`);
         for (const gameId of gameIds) {
           if (signal.aborted) break;
           
@@ -102,7 +103,7 @@ export const scan = async function(signal) {
           }
         }
       } catch (err) {
-        console.warn(`[Battle.net] Failed to scan ${gamesFolder}: ${err.message}`);
+        warn(`[Battle.net] Failed to scan ${gamesFolder}: ${err.message}`);
       }
     }
     
@@ -110,7 +111,7 @@ export const scan = async function(signal) {
     
     try {
       const gameIds = await getGameIdsFromDir(path);
-      console.log(`[Battle.net] Found ${gameIds.length} items directly in ${path}`);
+      info(`[Battle.net] Found ${gameIds.length} items directly in ${path}`);
       for (const gameId of gameIds) {
         if (signal.aborted) break;
         
@@ -125,11 +126,11 @@ export const scan = async function(signal) {
         }
       }
     } catch (err) {
-      console.warn(`[Battle.net] Failed to scan ${path}: ${err.message}`);
+      warn(`[Battle.net] Failed to scan ${path}: ${err.message}`);
     }
   }
   
-  console.log(`[Battle.net] scan complete: ${games.length} games found`);
+  info(`[Battle.net] scan complete: ${games.length} games found`);
   return games;
 };
 

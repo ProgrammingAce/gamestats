@@ -15,7 +15,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const port = getPort();
 let customConfigPath = null;
 
 app.use(express.json());
@@ -49,18 +48,24 @@ function startIdleTimer() {
   }, 60000);
 }
 
-const server = app.listen(port, '127.0.0.1', () => {
-  info(`Server listening on http://127.0.0.1:${port}`);
-});
+let server;
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    error(`Port ${port} is in use. Try using --port flag to specify a different port.`);
+function startServer() {
+  server = app.listen(getPort(), '127.0.0.1', () => {
+    info(`Server listening on http://127.0.0.1:${getPort()}`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      error(`Port ${getPort()} is in use. Try using --port flag to specify a different port.`);
+      process.exit(1);
+    }
+    error(`Server error: ${err.message}`);
     process.exit(1);
-  }
-  error(`Server error: ${err.message}`);
-  process.exit(1);
-});
+  });
+}
+
+export { startServer };
 
 process.on('SIGINT', () => {
   info('SIGINT received, shutting down...');

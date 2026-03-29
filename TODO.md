@@ -1,52 +1,46 @@
-# GameStats — TODO
+# TODO - GameStats Improvements
 
-Improvements identified by reviewing the codebase against DESIGN.md.
+## Bugs
 
----
+- [x] **Duplicate `/restart` route** — `server/routes/scan.js` has the `GET /restart` handler defined twice (lines 160-172). Remove the duplicate.
+- [x] **`updateSummary()` mutates `state.games`** — `public/app.js:351` calls `state.games.sort()` which sorts the array in place, corrupting the original order. Use `[...state.games].sort(...)` or `toSorted()` instead.
+- [x] **`addCustomFolder()` references undefined `input`** — `public/app.js:418` uses `input.value = ''` but `input` is not defined in that function scope. The caller already clears the input, so remove this line.
+- [x] **SSE error disables scan button permanently** — `public/app.js:267` sets `scanBtn.disabled = true` on SSE error. Should be `false` so the user can retry.
+- [x] **`data-path` attribute not escaped in renderTable** — `public/app.js:336` puts `game.path` raw into a `data-path` attribute. Paths with quotes could break the HTML. Use `escapeHtml()` on it.
 
-## Critical Bugs
+## Code Quality
 
-- [x] **Duplicate SSE handler in server/index.js** — Removed duplicate handler from index.js
-- [x] **configFileService.js validatePath uses `await` in non-async function** — `validatePath()` is now async but `await validatePath()` on line 63 is inside a `.forEach()` callback that isn't async. The `await` is ineffective. Fix: replace `.forEach()` with a `for...of` loop so `await` works inside the already-async `loadConfigFile`.
-- [x] **SSE event format mismatch between server and client** — Changed client to use `addEventListener` for named SSE events
+- [x] **Battle.net scanner uses raw `console.log/warn`** — `server/scanners/battlenet.js` has ~10 direct `console.log`/`console.warn` calls instead of importing and using the `log.js` module like every other file. Replace with `info()`/`warn()` from `server/log.js`.
+- [x] **Remove debug logging from `app.js`** — The frontend is littered with `console.log('Game event raw:', ...)`, `console.log('Progress event:', ...)`, etc. These were useful during development but should be removed or gated behind a debug flag for production.
+- [x] **Duplicate `launcherNames` array** — `public/app.js` defines the same launcher names array in both `renderLaunchers()` (line 95) and `renderLauncherFolders()` (line 131). Extract to a shared constant.
+- [x] **Duplicate folder/launcher UI for two pages** — The home page and folders page each have their own copies of folder lists and launcher lists (suffixed with `2`). This creates duplicated HTML and JS logic. Consider rendering a single set of controls and moving them between pages, or using a template approach.
 
-## High Priority
+## Features
 
-- [x] **Auto-scan on first open** — Server now auto-triggers a scan on first SSE connection when no scan has run yet
-- [x] **`/api/open` path safety validation** — Added path validation against known scan locations (from scan results and custom folder list). Only paths within known scan locations are now allowed.
-- [x] **`/api/open` cross-platform support** — Added platform detection: `open` (macOS), `xdg-open` (Linux), `explorer.exe` (Windows).
+- [x] **Format game names better** — `formatName()` in `app.js` exists but is never called. Game names from launchers are displayed raw. Apply `formatName()` for custom folder games (which use directory names) while preserving launcher-provided names.
+- [x] **Show size in MB for small games** — `formatSize()` always formats as GB. Games under 1 GB show as "0.1 GB" or "0.0 GB". Show MB when size < 1 GB (e.g., "542.3 MB").
+- [x] **Export game list** — Add a button to export the scanned game list as CSV or JSON for use in spreadsheets or other tools.
+- [x] **Search by launcher** — The filter only searches by game name. Allow filtering by launcher (e.g., typing "steam:" to filter to Steam games only) or add a launcher dropdown filter.
+- [x] **Remember last scan results** — Persist the last scan results to `settings.json` so the UI can show them immediately on load while a fresh scan runs in the background.
+- [x] **Show scan progress bar** — Replace the text-only "Calculating: game (3/47)..." with a visual progress bar showing percentage complete.
+- [ ] **Dark/light theme toggle** — The app is dark theme only. Some users prefer light themes. Add a toggle that persists to settings.
+- [ ] **Keyboard shortcuts** — Add keyboard shortcuts: `F5` or `Ctrl+R` to rescan, `/` to focus the filter input, `Escape` to clear filter.
 
-## Medium Priority
+## Testing
 
-- [x] **Missing `--config <path>` CLI flag** — Added `--config <path>` flag to `bin/gamestats.js` that accepts a path to a custom `gamestats.config.json` file
-- [x] **Settings path should use `%APPDATA%` on Windows** — `settingsService.js` now detects Windows and uses `%APPDATA%\gamestats\settings.json` with `~/.gamestats/` as fallback.
-- [x] **GOG Galaxy additional library paths** — `scanners/gog.js` now checks `%LOCALAPPDATA%\GOG.com\Galaxy\Configuration\` for JSON config files that contain `library_paths` arrays, adding those paths to the scan
-- [x] **Xbox scanner WindowsApps note** — DESIGN.md says to skip `WindowsApps` and note the limitation in the UI. Current implementation silently ignores this.
-- [x] **Rank column sort** — `public/app.js` now handles rank by sorting by size descending
+- [ ] **Expand test coverage** — Current tests only check that scanners export the correct interface. Add behavioral tests: mock the filesystem and verify that each scanner correctly parses its launcher's data files (VDF for Steam, `.item` JSON for Epic, etc.).
+- [ ] **Add frontend tests** — `applyFiltersAndSort()`, `formatSize()`, and `formatName()` are pure functions that can be unit tested. Extract them for testing or add a basic test harness.
+- [ ] **Test the SSE scan flow end-to-end** — Use `supertest` or similar to verify that `POST /api/scan` + `GET /api/scan` (SSE) returns the expected event sequence.
 
-## Low Priority
+## Platform Support
 
-- [x] **customFolder.js `.name` access on string** — Added type checking to handle both string paths and `{path, name}` objects
-- [x] **No tests** — Added vitest.config.js and test files for: steam scanner, epic scanner, directory size calculator, scan orchestrator
-- [x] **No vitest config** — Added `vitest.config.js` with proper configuration (globals, environment, include patterns)
+- [ ] **macOS/Linux launcher detection** — Most scanners hardcode Windows paths (`C:\Program Files`, registry queries). Add platform-specific path resolution for macOS (e.g., `~/Library/Application Support/Steam`) and Linux (e.g., `~/.steam`).
+- [ ] **Improve Xbox detection** — The Xbox scanner only checks `C:\XboxGames`. Xbox Game Pass games can also be installed in other locations. Check the registry or WinGet for more paths.
 
-## New Issues (found during review)
+## Performance
 
-- [x] **Double `listen` call** — `server/index.js:45` calls `app.listen()` and then `bin/gamestats.js:60` calls `server.listen()` again on the same server object. Removed duplicate from bin/gamestats.js
-- [x] **Missing middleware in server/index.js** — Added `express.json()` and `express.static()` middleware
-- [x] **Duplicate `complete` SSE event** — Removed `complete` event from orchestrator, now returns `{ games, notes }`. Route's `completeScan` sends single `complete` with `notes` from orchestrator + `durationMs`
-- [x] **`getCustomPaths` not exported from server/index.js** — `routes/open.js` now imports `getCustomPaths` from `settingsService.js` directly
-- [x] **Xbox `notes` return format breaks scanner interface** — `xbox.js` returns `{ games, notes }` instead of a plain `GameEntry[]` array. The orchestrator handles both formats (scanOrchestrator.js:36-37), but the `notes` from the auto-scan path in `scan.js:42` are not included since that `complete` event is built manually without them.
+- [ ] **Parallelize size calculations** — `scanOrchestrator.js` calculates directory sizes sequentially. For games on different physical drives, parallel calculation would be faster. Group games by drive letter and parallelize across drives.
+- [ ] **Cache directory sizes** — Large game directories take time to measure. Cache sizes with a file modification timestamp and skip recalculation if unchanged.
+- [ ] **Debounce filter input** — `app.js` re-filters and re-renders on every keystroke. Add a small debounce (150-200ms) for smoother typing on large game lists.
 
-## Architecture / Security
-
-- [x] **SSE flow doesn't match DESIGN.md** — `POST /api/scan` now broadcasts to `activeSses` connections opened via `GET /api/scan`. POST returns `202 Accepted` with `{ status: "started" }` and SSE events stream through the GET connection.
-- [x] **`POST /api/scan` should return `202 Accepted`** — Now sends `202 Accepted` with `{ "status": "started" }` immediately before starting the scan
-- [x] **XSS via innerHTML in app.js** — Applied `escapeHtml()` to all `data-path` attributes in `renderTable()` (line 184) and `renderFolders()` (line 55)
-- [x] **Circular imports between index.js and routes** — Created `services/sharedState.js` to hold shared state (`scanResults`, `customConfigPath`) and functions (`updateScanResults`, `isPathWithinKnownLocations`, `normalizePath`, `setCustomConfigPath`, `getCustomConfigPath`). All imports now reference the service file, eliminating circular dependencies.
-
-## Polish / Nice-to-Have
-
-- [x] **Empty state message** — DESIGN.md specifies showing "No games found. Try adding a custom scan folder." when scan returns zero results.
-- [x] **Scan duration in status bar** — Added timestamp display showing `Last scan: MM-DD-YYYY HH:MM` after scan completes
-- [x] **Port-in-use error message** — Added error handler for EADDRINUSE that shows clear message suggesting `--port` flag
+(End of file - total 44 lines)

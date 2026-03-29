@@ -4,7 +4,7 @@ import { dirname, join } from 'path';
 import open from 'open';
 import { info, warn, error } from '../server/log.js';
 import { getPort, setPort } from '../server/services/settingsService.js';
-import { app, server, setNoAutoShutdown } from '../server/index.js';
+import { app, setNoAutoShutdown, startServer } from '../server/index.js';
 import { loadConfigFile } from '../server/services/configFileService.js';
 import { getCustomConfigPath, setCustomConfigPath } from '../server/services/sharedState.js';
 
@@ -63,6 +63,8 @@ info(`GameStats running on http://127.0.0.1:${port}`);
 if (configPath) {
   info(`Using custom config file: ${configPath}`);
 }
+
+startServer();
 
 if (openBrowser) {
   open(`http://127.0.0.1:${port}`)

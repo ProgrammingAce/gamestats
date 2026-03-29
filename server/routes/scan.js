@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { info, warn } from '../log.js';
 import { ScanOrchestrator } from '../services/scanOrchestrator.js';
 import { updateScanResults } from '../services/sharedState.js';
+import { saveLastScanResults } from '../services/settingsService.js';
 
 const router = Router();
 const orchestrator = new ScanOrchestrator();
@@ -57,6 +58,7 @@ function keepAlive() {
 function completeScan(games, duration, startTime, notes) {
   const totalSize = games.reduce((sum, g) => sum + (g.size || 0), 0);
   updateScanResults(games);
+  saveLastScanResults(games, totalSize, games.length, duration);
   broadcastSse('complete', {
     phase: 'complete',
     totalGames: games.length,
@@ -164,11 +166,14 @@ router.get('/restart', (req, res) => {
   return res.json({ status: 'restarted' });
 });
 
-router.get('/restart', (req, res) => {
-  info('Manual scan restart triggered');
-  scanHasRun = false;
-  orchestrator.abort();
-  return res.json({ status: 'restarted' });
+router.get('/last-results', async (req, res) => {
+  const { getLastScanResults } = await import('../services/settingsService.js');
+  const results = getLastScanResults();
+  if (results) {
+    info('Returning last scan results');
+    return res.json(results);
+  }
+  return res.json(null);
 });
 
 router.post('/browse-folder', async (req, res) => {

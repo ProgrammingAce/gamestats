@@ -142,6 +142,24 @@ export function getLauncherFolders() {
   return settings.folders || {};
 }
 
+export function getLastScanResults() {
+  const settings = loadSettings();
+  return settings.lastScanResults || null;
+}
+
+export function saveLastScanResults(games, totalSize, totalGames, durationMs) {
+  const settings = loadSettings();
+  settings.lastScanResults = {
+    games,
+    totalSize,
+    totalGames,
+    durationMs,
+    timestamp: Date.now(),
+  };
+  saveSettings(settings);
+  return settings.lastScanResults;
+}
+
 function normalizePath(path) {
   return path.toLowerCase().replace(/\\/g, '/');
 }

@@ -8,104 +8,85 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>GAMESTATS</h1>
-    </header>
+    <div id="homePage">
+      <header>
+        <h1>GAMESTATS</h1>
+      </header>
 
-    <div class="controls">
-      <button id="scanBtn" class="btn btn-primary">Scan Now</button>
-      <button id="manageBtn" class="btn btn-secondary">Manage Folders</button>
-    </div>
+      <div class="controls">
+        <button id="scanBtn" class="btn btn-primary">Scan Now</button>
+        <button id="manageBtn" class="btn btn-secondary">Manage Folders</button>
+        <button id="exportBtn" class="btn btn-secondary">Export</button>
+      </div>
 
-    <div class="summary" id="summary">
-      <span id="totalGames">Total: 0 games</span>
-      <span id="totalSize">| 0 GB</span>
-      <span id="largestGame">| Largest: -</span>
-    </div>
+      <div class="summary" id="summary">
+        <span id="totalGames">Total: 0 games</span>
+        <span id="totalSize">| 0 GB</span>
+        <span id="largestGame">| Largest: -</span>
+      </div>
 
-    <div id="warningNotesContainer"></div>
+      <div id="warningNotesContainer"></div>
 
-    <div class="filter-bar">
-      <input type="text" id="filterInput" placeholder="Filter games by name..." class="filter-input">
-    </div>
-
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th class="sortable" data-sort="rank">#</th>
-            <th class="sortable" data-sort="name">Game Name</th>
-            <th class="sortable" data-sort="launcher">Launcher</th>
-            <th class="sortable" data-sort="size">Size</th>
-            <th>Install Path</th>
-          </tr>
-        </thead>
-        <tbody id="gameTableBody">
-        </tbody>
-      </table>
-    </div>
-
-    <div class="status-bar" id="statusBar">
-      <span id="scanStatus">Ready</span>
-      <span id="scanProgress"></span>
-      <span id="lastScanTime"></span>
-    </div>
-
-    <div class="manage-panels" id="managePanels">
-      <div class="panel" id="userFoldersPanel">
-        <h2>User Folders</h2>
-        <div class="add-folder">
-          <input type="text" id="newFolderPath" placeholder="Enter path (e.g., D:\Games)" class="path-input">
-          <button id="addFolderBtn" class="btn btn-small">Add</button>
+      <div class="status-bar" id="statusBar">
+        <span id="scanStatus">Ready</span>
+        <div class="progress-container" id="progressContainer">
+          <progress id="scanProgress" max="100" value="0"></progress>
+          <span id="progressText"></span>
         </div>
-        <div id="userFoldersList" class="folders-list"></div>
+        <span id="lastScanTime"></span>
       </div>
 
-      <div class="panel" id="configFoldersPanel">
-        <h2>Config File Folders</h2>
-        <div id="configFoldersList" class="folders-list"></div>
-        <p class="hint" id="configHint">Place a gamestats.config.json in your working directory to pre-configure scan paths.</p>
+      <div class="filter-bar">
+        <input type="text" id="filterInput" placeholder="Filter games by name..." class="filter-input">
       </div>
 
-      <div class="panel" id="launcherPanel">
-        <h2>Launchers</h2>
-        <div id="launcherList" class="launcher-list"></div>
-      </div>
-
-      <div class="panel" id="launcherFoldersPanel">
-        <h2>Launcher Folders</h2>
-        <p class="hint">Override default folder paths for each launcher:</p>
-        <div id="launcherFoldersList" class="launcher-folders-list"></div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="rank">#</th>
+              <th class="sortable" data-sort="name">Game Name</th>
+              <th class="sortable" data-sort="launcher">Launcher</th>
+              <th class="sortable" data-sort="size">Size</th>
+              <th>Install Path</th>
+            </tr>
+          </thead>
+          <tbody id="gameTableBody">
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <div id="foldersPage" class="folders-page">
-      <button id="backToHomeBtn" class="btn btn-secondary">← Back to Home</button>
+    <div id="foldersPage" style="display: none;">
+      <div class="folders-header">
+        <button id="backToHomeBtn" class="btn btn-secondary">← Back</button>
+        <h1>Manage Folders</h1>
+      </div>
       <div class="manage-panels">
-        <div class="panel" id="userFoldersPanel2">
+        <div class="panel" id="userFoldersPanel">
           <h2>User Folders</h2>
           <div class="add-folder">
-            <input type="text" id="newFolderPath2" placeholder="Enter path (e.g., D:\Games)" class="path-input">
-            <button id="addFolderBtn2" class="btn btn-small">Add</button>
+            <input type="text" id="newFolderPath" placeholder="Enter path (e.g., D:\Games)" class="path-input">
+            <button id="addFolderBtn" class="btn btn-small">Add</button>
           </div>
-          <div id="userFoldersList2" class="folders-list"></div>
+          <div id="userFoldersList" class="folders-list"></div>
         </div>
 
-        <div class="panel" id="configFoldersPanel2">
+        <div class="panel" id="configFoldersPanel">
           <h2>Config File Folders</h2>
-          <div id="configFoldersList2" class="folders-list"></div>
-          <p class="hint" id="configHint2">Place a gamestats.config.json in your working directory to pre-configure scan paths.</p>
+          <div id="configFoldersList" class="folders-list"></div>
+          <p class="hint" id="configHint">Place a gamestats.config.json in your working directory to pre-configure scan paths.</p>
         </div>
 
-        <div class="panel" id="launcherPanel2">
+        <div class="panel" id="launcherPanel">
           <h2>Launchers</h2>
-          <div id="launcherList2" class="launcher-list"></div>
+          <div id="launcherList" class="launcher-list"></div>
         </div>
 
-        <div class="panel" id="launcherFoldersPanel2">
+        <div class="panel" id="launcherFoldersPanel">
           <h2>Launcher Folders</h2>
           <p class="hint">Override default folder paths for each launcher:</p>
-          <div id="launcherFoldersList2" class="launcher-folders-list"></div>
+          <div id="launcherFoldersList" class="launcher-folders-list"></div>
         </div>
       </div>
     </div>
